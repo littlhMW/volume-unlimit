@@ -1,0 +1,43 @@
+# 音量破限 · Volume Unlimit
+
+一个面向 Windows 的单窗口程序音量增益工具。它可以列出当前正在播放声音的程序，点击选择一个或多个音频会话，然后统一调整独立音量或启用超过系统 100% 上限的实时增益。
+
+## 功能
+
+- 多选程序：点击列表中的多个程序即可同时处理。
+- 独立音量：批量设置所选程序的 Windows 会话音量（0–100%）。
+- 真正增益：使用 Windows Application Process Loopback 捕获所选程序，放大 PCM 音频后重新播放，范围 100–1000%；500% 约等于 5 倍振幅。
+- 单文件安装：安装器内含程序和回环组件，不安装虚拟声卡、Equalizer APO、服务或开机启动项。
+- 一键卸载：移除本工具自己的安装目录、快捷方式和用户级卸载项。
+- 使用 `exvcicon.png` 制作的扬声器图标。
+
+## 为什么做它
+
+这个项目源于我自己的轻度听力障碍体验：有些程序的声音即使系统音量已经 100%，仍然不够清楚。我希望把“选择程序 → 调整增益”压缩成一个简单面板，减少复杂的音频路由和多个附加软件。
+
+## 使用
+
+1. 双击 `VolumeBoost-Setup.exe` 安装。
+2. 打开“程序音量增益”，让目标程序播放声音。
+3. 在列表中点击选择一个或多个程序，设置增益并点击“启动增益”。
+4. 停止增益会恢复所选程序启动前的会话音量。
+
+增益会带来少量延迟，超过满幅的声音可能削波。第一次使用前请先降低耳机、音箱或功放的物理音量。ASIO、WASAPI 独占模式、受保护音频和不支持 Application Loopback 的旧版 Windows 可能无法使用此功能。
+
+## 构建
+
+需要 .NET 8 SDK 和 Windows x64 环境。构建安装包：
+
+```powershell
+.\build-release.ps1
+```
+
+输出的安装包是自包含的 Windows x64 单文件程序。源码位于 `PerAppVolume` 和 `VolumeBoostSetup` 目录；`PerAppVolume/native/ApplicationLoopback.dll` 来自 MIT 许可的 ApplicationLoopback.NET 项目，许可证见 [第三方声明](VolumeBoostSetup/THIRD-PARTY-NOTICES.md)。
+
+## 代码说明
+
+本项目的界面、安装器、音频会话控制和增益流程由 GPT 协助完成，并经过本机 Windows 11 音频会话、安装、启动、增益启动/停止和卸载测试。
+
+## 许可
+
+本项目源代码使用 MIT License。第三方组件遵循各自许可证。

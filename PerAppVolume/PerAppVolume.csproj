@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PerAppVolume</AssemblyName>
+    <RootNamespace>PerAppVolume</RootNamespace>
+    <Product>音量破限 / Volume Unlimit</Product>
+    <Description>Per-application audio volume boost for Windows</Description>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>exvcicon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Already present in the local NuGet cache; used only for WASAPI capture/render. -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <Content Include="native\ApplicationLoopback.dll" Link="ApplicationLoopback.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Always" />
+    <None Include="exvcicon.ico" />
+  </ItemGroup>
+</Project>

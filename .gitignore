@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+PerAppVolume/publish/
+PerAppVolume/publish_*/
+PerAppVolume/publish_trim/
+PerAppVolume/publish_aot/
+VolumeBoostSetup/payload/
+release*/
+release/
+VolumeBoost-Setup.exe
+NativeProbe/
+EngineProbe/
