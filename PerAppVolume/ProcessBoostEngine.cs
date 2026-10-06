@@ -29,7 +29,7 @@ internal sealed class ProcessBoostEngine : IDisposable
         if (engine.processIds.Length == 0) throw new InvalidOperationException("请至少选择一个正在播放声音的程序。");
         try
         {
-            engine.MuteTargetSessions();
+            engine.SuppressOriginalSessions();
             engine.Open();
             return Task.FromResult(engine);
         }
@@ -40,16 +40,38 @@ internal sealed class ProcessBoostEngine : IDisposable
         }
     }
 
-    private void MuteTargetSessions()
+    private void SuppressOriginalSessions()
     {
         var treeIds = ProcessTreeIds(processIds);
         foreach (var session in AudioSession.List().Where(x => treeIds.Contains(x.ProcessId)))
         {
             var old = session.GetVolume();
             var oldMute = session.GetMute();
-            session.SetMute(true);
-            session.SetVolume(0);
-            muted.Add((session, old, oldMute));
+            try
+            {
+                // Windows process loopback also observes ISimpleAudioVolume
+                // mute.  Muting therefore silences the copy as well.  Lower
+                // the original session by gain² and compensate the captured
+                // stream by gain² instead: the replay is still `gain` times
+                // the user's original level, while the direct path is only
+                // 1/gain² of it (about -28 dB at 500%).
+                if (oldMute) throw new InvalidOperationException("目标会话已经静音");
+                var attenuation = Math.Clamp(old / (gain * gain), 0.001f, 1f);
+                session.SetMute(false);
+                session.SetVolume(attenuation);
+                Thread.Sleep(20);
+                var confirmedVolume = session.GetVolume();
+                if (session.GetMute() || Math.Abs(confirmedVolume - attenuation) > 0.01f)
+                    throw new InvalidOperationException("系统未能降低原始音频会话");
+                muted.Add((session, old, oldMute));
+            }
+            catch
+            {
+                try { session.SetVolume(old); session.SetMute(oldMute); } catch { }
+                throw new InvalidOperationException(
+                    "无法可靠地降低原始音频，会产生回音。请停止该程序的独占音频/通话模式后重试。"
+                );
+            }
         }
         if (muted.Count == 0)
             throw new InvalidOperationException("找不到该程序的活动音频会话。请先让程序播放声音，再重试。");
@@ -111,8 +133,8 @@ internal sealed class ProcessBoostEngine : IDisposable
         var format = new WaveFormat(48000, 16, 2);
         var device = GetDefaultNaudioDevice();
         var mixer = new ProcessWaveMixer(format);
-        // Give the shared-mode session mute time to propagate before capture
-        // starts; otherwise the first original packets can leak beside the copy.
+        // Give the shared-mode session attenuation time to propagate before
+        // capture starts; otherwise the first full-volume packets can leak.
         Thread.Sleep(120);
         output = new WasapiOut(device, AudioClientShareMode.Shared, false, 20);
         output.Init(mixer);
@@ -126,7 +148,7 @@ internal sealed class ProcessBoostEngine : IDisposable
                 BufferDuration = TimeSpan.FromMilliseconds(40)
             };
             mixer.AddInput(buffer);
-            var capture = new NativeLoopbackCapture(processId, gain, buffer);
+            var capture = new NativeLoopbackCapture(processId, gain * gain, buffer);
             capture.Start();
             captures.Add(capture);
         }

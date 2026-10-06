@@ -108,7 +108,7 @@ internal sealed class MainForm : Form
         boostPanel.Controls.Add(boostButton);
         boostLayout.Controls.Add(boostPanel, 0, 0);
         boostLayout.SetColumnSpan(boostPanel, 2);
-        var boostHint = new Label { Text = "500% 约为 5 倍振幅；满幅声音可能削波。停止后会恢复所选会话原音量。", AutoSize = true, ForeColor = Color.FromArgb(95, 104, 118), Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
+        var boostHint = new Label { Text = "为降低回音，原会话会暂降至增益²比例，捕获副本再补偿；500% 约为 5 倍，满幅声音可能削波。停止后恢复原音量。", AutoSize = true, ForeColor = Color.FromArgb(95, 104, 118), Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
         boostLayout.Controls.Add(boostHint, 0, 1);
         boostLayout.SetColumnSpan(boostHint, 2);
         boostBox.Controls.Add(boostLayout);
