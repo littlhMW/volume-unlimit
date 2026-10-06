@@ -12,13 +12,12 @@ internal sealed class ProcessBoostEngine : IDisposable
 {
     private readonly uint[] processIds;
     private readonly float gain;
-    private readonly List<(AudioSession Session, float Volume)> muted = new();
+    private readonly List<(AudioSession Session, float Volume, bool Muted)> muted = new();
     private WasapiOut? output;
-    private BufferedWaveProvider? provider;
     private readonly List<NativeLoopbackCapture> captures = new();
     private bool disposed;
 
-    private ProcessBoostEngine(IEnumerable<uint> processIds, float gain) { this.processIds = processIds.Distinct().ToArray(); this.gain = gain; }
+    private ProcessBoostEngine(IEnumerable<uint> processIds, float gain) { this.processIds = CollapseRoots(processIds); this.gain = gain; }
 
     public static Task<ProcessBoostEngine> StartAsync(uint processId, float gain, CancellationToken cancellationToken = default)
         => StartAsync(new[] { processId }, gain, cancellationToken);
@@ -43,35 +42,110 @@ internal sealed class ProcessBoostEngine : IDisposable
 
     private void MuteTargetSessions()
     {
-        foreach (var session in AudioSession.List().Where(x => processIds.Contains(x.ProcessId)))
+        var treeIds = ProcessTreeIds(processIds);
+        foreach (var session in AudioSession.List().Where(x => treeIds.Contains(x.ProcessId)))
         {
             var old = session.GetVolume();
+            var oldMute = session.GetMute();
+            session.SetMute(true);
             session.SetVolume(0);
-            muted.Add((session, old));
+            muted.Add((session, old, oldMute));
         }
         if (muted.Count == 0)
             throw new InvalidOperationException("找不到该程序的活动音频会话。请先让程序播放声音，再重试。");
+    }
+
+    private static HashSet<uint> ProcessTreeIds(IEnumerable<uint> roots)
+    {
+        var parent = ProcessParentMap();
+        var result = roots.ToHashSet();
+        var changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var pair in parent)
+                if (result.Contains(pair.Value) && result.Add(pair.Key)) changed = true;
+        }
+        return result;
+    }
+
+    private static uint[] CollapseRoots(IEnumerable<uint> input)
+    {
+        var roots = input.Distinct().ToHashSet();
+        var parent = ProcessParentMap();
+        return roots.Where(pid =>
+        {
+            var current = pid;
+            var seen = new HashSet<uint>();
+            while (parent.TryGetValue(current, out var p) && p != 0 && seen.Add(current))
+            {
+                if (roots.Contains(p)) return false;
+                current = p;
+            }
+            return true;
+        }).ToArray();
+    }
+
+    private static Dictionary<uint, uint> ProcessParentMap()
+    {
+        var parent = new Dictionary<uint, uint>();
+        var snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapshot != IntPtr.Zero && snapshot != INVALID_HANDLE_VALUE)
+        {
+            try
+            {
+                var entry = new PROCESSENTRY32 { dwSize = (uint)Marshal.SizeOf<PROCESSENTRY32>() };
+                if (Process32First(snapshot, ref entry))
+                {
+                    do { parent[entry.th32ProcessID] = entry.th32ParentProcessID; }
+                    while (Process32Next(snapshot, ref entry));
+                }
+            }
+            finally { CloseHandle(snapshot); }
+        }
+        return parent;
     }
 
     private void Open()
     {
         var format = new WaveFormat(48000, 16, 2);
         var device = GetDefaultNaudioDevice();
-        output = new WasapiOut(device, AudioClientShareMode.Shared, false, 50);
-        provider = new BufferedWaveProvider(format)
-        {
-            ReadFully = true,
-            DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromMilliseconds(300)
-        };
-        output.Init(provider);
+        var mixer = new ProcessWaveMixer(format);
+        // Give the shared-mode session mute time to propagate before capture
+        // starts; otherwise the first original packets can leak beside the copy.
+        Thread.Sleep(120);
+        output = new WasapiOut(device, AudioClientShareMode.Shared, false, 20);
+        output.Init(mixer);
         output.Play();
         foreach (var processId in processIds)
         {
-            var capture = new NativeLoopbackCapture(processId, gain, provider);
+            var buffer = new BufferedWaveProvider(format)
+            {
+                ReadFully = true,
+                DiscardOnBufferOverflow = true,
+                BufferDuration = TimeSpan.FromMilliseconds(40)
+            };
+            mixer.AddInput(buffer);
+            var capture = new NativeLoopbackCapture(processId, gain, buffer);
             capture.Start();
             captures.Add(capture);
         }
+    }
+
+    private const uint TH32CS_SNAPPROCESS = 0x00000002;
+    private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Process32First(IntPtr snapshot, ref PROCESSENTRY32 entry);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern bool Process32Next(IntPtr snapshot, ref PROCESSENTRY32 entry);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool CloseHandle(IntPtr handle);
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct PROCESSENTRY32
+    {
+        public uint dwSize, cntUsage, th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID, cntThreads, th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExeFile;
     }
 
     private static NAudio.CoreAudioApi.MMDevice GetDefaultNaudioDevice()
@@ -104,9 +178,38 @@ internal sealed class ProcessBoostEngine : IDisposable
         captures.Clear();
         try { output?.Stop(); } catch { }
         output?.Dispose();
-        foreach (var (session, volume) in muted)
-            try { session.SetVolume(volume); } catch { }
+        foreach (var (session, volume, wasMuted) in muted)
+            try { session.SetVolume(volume); session.SetMute(wasMuted); } catch { }
         muted.Clear();
+    }
+}
+
+/// Combines simultaneous process streams sample by sample. Appending each
+/// stream to one BufferedWaveProvider causes an ever-growing delayed echo.
+internal sealed class ProcessWaveMixer : IWaveProvider
+{
+    private readonly List<BufferedWaveProvider> inputs = new();
+    public WaveFormat WaveFormat { get; }
+    public ProcessWaveMixer(WaveFormat format) => WaveFormat = format;
+    public void AddInput(BufferedWaveProvider input) => inputs.Add(input);
+
+    public int Read(byte[] buffer, int offset, int count)
+    {
+        Array.Clear(buffer, offset, count);
+        if (inputs.Count == 0) return count;
+        var mixed = new int[count / 2];
+        var scratch = new byte[count];
+        foreach (var input in inputs)
+        {
+            Array.Clear(scratch);
+            input.Read(scratch, 0, count);
+            for (var i = 0; i < mixed.Length; i++)
+                mixed[i] += BitConverter.ToInt16(scratch, i * 2);
+        }
+        for (var i = 0; i < mixed.Length; i++)
+            BitConverter.TryWriteBytes(buffer.AsSpan(offset + i * 2, 2),
+                (short)Math.Clamp(mixed[i], short.MinValue, short.MaxValue));
+        return count;
     }
 }
 

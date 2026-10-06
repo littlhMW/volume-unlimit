@@ -242,6 +242,8 @@ internal sealed class AudioSession
     public override string ToString() => Display;
     public float GetVolume() { volume.GetMasterVolume(out var v); return v; }
     public void SetVolume(float v) { volume.SetMasterVolume(v, Guid.Empty); }
+    public bool GetMute() { volume.GetMute(out var muted); return muted; }
+    public void SetMute(bool muted) { volume.SetMute(muted, Guid.Empty); }
 
     public static List<AudioSession> List()
     {
