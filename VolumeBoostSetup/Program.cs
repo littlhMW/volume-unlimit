@@ -46,6 +46,9 @@ internal static class Program
         notices.CopyTo(noticesOutput);
         File.Copy(Environment.ProcessPath!, Uninstaller, true);
 
+        // Remove shortcuts created by versions before the product was renamed.
+        DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "程序音量增益.lnk"));
+        DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "程序音量增益.lnk"));
         var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "音量破限.lnk");
         Directory.CreateDirectory(Path.GetDirectoryName(startMenu)!);
         CreateShortcut(startMenu, AppExe, InstallDir);
