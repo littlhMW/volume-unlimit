@@ -18,13 +18,19 @@ internal static class Program
 
 internal sealed class MainForm : Form
 {
+    private static readonly Color Surface = Color.White;
+    private static readonly Color Canvas = Color.FromArgb(244, 247, 251);
+    private static readonly Color Ink = Color.FromArgb(27, 36, 51);
+    private static readonly Color Muted = Color.FromArgb(91, 103, 122);
+    private static readonly Color Accent = Color.FromArgb(36, 104, 200);
     private readonly ListBox sessions = new()
     {
         SelectionMode = SelectionMode.MultiSimple,
         IntegralHeight = false,
         BorderStyle = BorderStyle.FixedSingle,
         BackColor = Color.White,
-        Dock = DockStyle.Fill
+        Dock = DockStyle.Fill,
+        Font = new Font("Segoe UI", 10.5F)
     };
     private readonly TrackBar volume = new() { Minimum = 0, Maximum = 100, TickFrequency = 10, Dock = DockStyle.Fill };
     private readonly Label value = new() { AutoSize = true, Text = "—", Anchor = AnchorStyles.Left };
@@ -40,25 +46,28 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "程序音量增益";
-        MinimumSize = new Size(700, 560);
+        Text = "音量破限 / Volume Unlimit";
+        MinimumSize = new Size(760, 620);
+        ClientSize = new Size(860, 700);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 10F);
-        BackColor = Color.FromArgb(245, 247, 250);
+        BackColor = Canvas;
+        AutoScaleMode = AutoScaleMode.Font;
+        DoubleBuffered = true;
 
         var title = new Label
         {
-            Text = "程序音量增益",
+            Text = "音量破限",
             AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 15F),
-            ForeColor = Color.FromArgb(30, 38, 50),
+            Font = new Font("Segoe UI Semibold", 19F),
+            ForeColor = Ink,
             Margin = new Padding(0, 0, 0, 2)
         };
         var subtitle = new Label
         {
-            Text = "选择一个或多个音频会话，然后调整独立音量。",
+            Text = "Volume Unlimit  ·  选择程序，直接调整音量或开启 100–1000% 增益。",
             AutoSize = true,
-            ForeColor = Color.FromArgb(95, 104, 118),
+            ForeColor = Muted,
             Margin = new Padding(0, 0, 0, 0)
         };
         refresh.Click += (_, _) => LoadSessions();
@@ -68,13 +77,34 @@ internal sealed class MainForm : Form
         boostButton.Click += async (_, _) => await ToggleBoostAsync();
         poll.Tick += (_, _) => LoadSessions(keepSelection: true);
 
+        refresh.BackColor = Surface;
+        refresh.ForeColor = Accent;
+        refresh.FlatStyle = FlatStyle.Flat;
+        refresh.FlatAppearance.BorderColor = Color.FromArgb(170, 195, 230);
+        refresh.FlatAppearance.BorderSize = 1;
+        refresh.Padding = new Padding(10, 3, 10, 3);
+        boostButton.BackColor = Accent;
+        boostButton.ForeColor = Color.White;
+        boostButton.FlatStyle = FlatStyle.Flat;
+        boostButton.FlatAppearance.BorderSize = 0;
+        boostButton.Padding = new Padding(14, 5, 14, 5);
+        boostButton.Font = new Font(Font, FontStyle.Bold);
+        boostButton.Cursor = Cursors.Hand;
+        volume.TickStyle = TickStyle.BottomRight;
+        volume.BackColor = Surface;
+        boost.BackColor = Surface;
+        sessions.ForeColor = Ink;
+        // Every click toggles a session, so selecting several programs does not
+        // require a keyboard modifier.
+        sessions.SelectionMode = SelectionMode.MultiSimple;
+
         var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = new Padding(0, 0, 0, 8) };
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         header.Controls.Add(title, 0, 0);
         header.Controls.Add(subtitle, 0, 1);
 
-        var sessionBox = new GroupBox { Text = "音频会话（点击即可选择多个）", Dock = DockStyle.Fill, Padding = new Padding(10), ForeColor = Color.FromArgb(45, 54, 68), Margin = new Padding(0, 0, 0, 10) };
+        var sessionBox = new GroupBox { Text = "① 选择音频会话（点击即可多选）", Dock = DockStyle.Fill, Padding = new Padding(12), ForeColor = Ink, BackColor = Surface, Margin = new Padding(0, 0, 0, 12) };
         var sessionLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
         sessionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         sessionLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 78));
@@ -87,7 +117,7 @@ internal sealed class MainForm : Form
         sessionLayout.SetColumnSpan(sessions, 2);
         sessionBox.Controls.Add(sessionLayout);
 
-        var volumeBox = new GroupBox { Text = "独立音量（0–100%）", Dock = DockStyle.Fill, Padding = new Padding(10), ForeColor = Color.FromArgb(45, 54, 68), Margin = new Padding(0, 0, 0, 10) };
+        var volumeBox = new GroupBox { Text = "② 独立音量（0–100%）", Dock = DockStyle.Fill, Padding = new Padding(12), ForeColor = Ink, BackColor = Surface, Margin = new Padding(0, 0, 0, 12) };
         var volumeLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         volumeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         volumeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
@@ -95,7 +125,7 @@ internal sealed class MainForm : Form
         volumeLayout.Controls.Add(value, 1, 0);
         volumeBox.Controls.Add(volumeLayout);
 
-        var boostBox = new GroupBox { Text = "真正增益（实时捕获、放大并重新播放）", Dock = DockStyle.Fill, Padding = new Padding(10), ForeColor = Color.FromArgb(45, 54, 68), Margin = new Padding(0, 0, 0, 10) };
+        var boostBox = new GroupBox { Text = "③ 真正增益（实时捕获、放大并重新播放）", Dock = DockStyle.Fill, Padding = new Padding(12), ForeColor = Ink, BackColor = Surface, Margin = new Padding(0, 0, 0, 12) };
         var boostLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
         boostLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         boostLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
@@ -108,19 +138,19 @@ internal sealed class MainForm : Form
         boostPanel.Controls.Add(boostButton);
         boostLayout.Controls.Add(boostPanel, 0, 0);
         boostLayout.SetColumnSpan(boostPanel, 2);
-        var boostHint = new Label { Text = "为降低回音，原会话会暂降至增益²比例，捕获副本再补偿；500% 约为 5 倍，满幅声音可能削波。停止后恢复原音量。", AutoSize = true, ForeColor = Color.FromArgb(95, 104, 118), Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
+        var boostHint = new Label { Text = "为降低回音，原会话会暂降至增益²比例，捕获副本再补偿。500% 约为 5 倍，满幅声音可能削波；停止后自动恢复。", AutoSize = true, ForeColor = Muted, Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 0) };
         boostLayout.Controls.Add(boostHint, 0, 1);
         boostLayout.SetColumnSpan(boostHint, 2);
         boostBox.Controls.Add(boostLayout);
 
-        var note = new Label { Text = "提示：增益功能只处理当前默认多媒体输出设备；可能有轻微延迟。", AutoSize = true, ForeColor = Color.FromArgb(95, 104, 118), Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), ColumnCount = 1, RowCount = 6 };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        var note = new Label { Text = "提示：增益只处理当前默认多媒体输出设备，可能有轻微延迟。遇到回音请降低增益或停止后重新启动。", AutoSize = true, ForeColor = Muted, Dock = DockStyle.Fill, Margin = new Padding(0, 2, 0, 0) };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(22, 18, 22, 18), ColumnCount = 1, RowCount = 6, BackColor = Canvas };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 94));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         layout.Controls.Add(header, 0, 0);
         layout.Controls.Add(sessionBox, 0, 1);
         layout.Controls.Add(volumeBox, 0, 2);
@@ -310,5 +340,3 @@ interface IAudioSessionManager2
 [ComImport, Guid("F4B1A599-7266-4319-A8CA-E70ACB11E8CD"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface IAudioSessionControl { void GetState(out int state); void GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string displayName); void SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string value, ref Guid eventContext); void GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string iconPath); void SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string value, ref Guid eventContext); void GetGroupingParam(out Guid groupingId); void SetGroupingParam(ref Guid groupingId, ref Guid eventContext); void RegisterAudioSessionNotification(IntPtr client); void UnregisterAudioSessionNotification(IntPtr client); }
 [ComImport, Guid("bfb7ff88-7239-4fc9-8fa2-07c950be9c6d"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface IAudioSessionControl2 { void GetState(out int state); void GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string displayName); void SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string value, ref Guid eventContext); void GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string iconPath); void SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string value, ref Guid eventContext); void GetGroupingParam(out Guid groupingId); void SetGroupingParam(ref Guid groupingId, ref Guid eventContext); void RegisterAudioSessionNotification(IntPtr client); void UnregisterAudioSessionNotification(IntPtr client); void GetSessionIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string id); void GetSessionInstanceIdentifier([MarshalAs(UnmanagedType.LPWStr)] out string instanceId); void GetProcessId(out uint processId); void IsSystemSoundsSession(); void SetDuckingPreference(bool optOut); }
 [ComImport, Guid("87CE5498-68D6-44E5-9215-6DA47EF883D8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface ISimpleAudioVolume { void SetMasterVolume(float level, Guid eventContext); void GetMasterVolume(out float level); void SetMute(bool mute, Guid eventContext); void GetMute(out bool mute); }
-
-

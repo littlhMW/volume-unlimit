@@ -6,7 +6,7 @@ namespace VolumeBoostSetup;
 
 internal static class Program
 {
-    private const string AppName = "程序音量增益";
+    private const string AppName = "音量破限 / Volume Unlimit";
     private static readonly string InstallDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "VolumeBoost");
     private static readonly string AppExe = Path.Combine(InstallDir, "VolumeBoost.exe");
     private static readonly string Uninstaller = Path.Combine(InstallDir, "VolumeBoost-卸载.exe");
@@ -46,18 +46,19 @@ internal static class Program
         notices.CopyTo(noticesOutput);
         File.Copy(Environment.ProcessPath!, Uninstaller, true);
 
-        var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "程序音量增益.lnk");
+        var startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "音量破限.lnk");
         Directory.CreateDirectory(Path.GetDirectoryName(startMenu)!);
         CreateShortcut(startMenu, AppExe, InstallDir);
-        var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "程序音量增益.lnk");
+        var desktop = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "音量破限.lnk");
         CreateShortcut(desktop, AppExe, InstallDir);
 
         using (var key = Registry.CurrentUser.CreateSubKey(UninstallKey))
         {
             key!.SetValue("DisplayName", AppName);
-            key.SetValue("DisplayVersion", "1.0.0");
+            key.SetValue("DisplayVersion", "1.1.0");
             key.SetValue("Publisher", "littlhMW");
             key.SetValue("InstallLocation", InstallDir);
+            key.SetValue("DisplayIcon", AppExe);
             key.SetValue("UninstallString", $"\"{Uninstaller}\" /uninstall");
             key.SetValue("NoModify", 1, RegistryValueKind.DWord);
             key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
@@ -73,6 +74,9 @@ internal static class Program
             try { process.CloseMainWindow(); if (!process.WaitForExit(1000)) process.Kill(true); } catch { }
         }
         Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false);
+        DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "音量破限.lnk"));
+        DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "音量破限.lnk"));
+        // Remove shortcuts created by versions before the product was renamed.
         DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs", "程序音量增益.lnk"));
         DeleteIfExists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "程序音量增益.lnk"));
 

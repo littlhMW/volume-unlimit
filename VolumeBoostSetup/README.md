@@ -1,4 +1,4 @@
-# VolumeBoost 单文件安装器
+# 音量破限 / Volume Unlimit 单文件安装器
 
 `VolumeBoost-Setup.exe` 是自包含的 Windows x64 安装包，内含 `VolumeBoost.exe` 和 `ApplicationLoopback.dll`，不需要另装 .NET、Equalizer APO 或虚拟音频驱动。
 

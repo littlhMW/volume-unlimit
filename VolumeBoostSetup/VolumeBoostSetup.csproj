@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <AssemblyName>VolumeBoost-Setup</AssemblyName>
     <RootNamespace>VolumeBoostSetup</RootNamespace>
+    <Product>音量破限 / Volume Unlimit</Product>
+    <Description>音量破限安装程序</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\PerAppVolume\exvcicon.ico</ApplicationIcon>
   </PropertyGroup>
